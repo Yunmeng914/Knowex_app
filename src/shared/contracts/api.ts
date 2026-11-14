@@ -1,4 +1,4 @@
-/** Typed, renderer-visible API exposed by the context-isolated preload bridge. */
+/** Typed, renderer-visible API exposed by the Web client adapter (and compatible with preload bridge). */
 import type {
   AISettingsPublic,
   AIConnectionPublic,
@@ -36,6 +36,33 @@ import type { GetExaContentInput, OpenExaSourceInput, SaveExaSettingsInput, Sear
 import type { SaveZoteroSettingsInput } from './schemas/zotero'
 import type { SaveAppSettingsInput } from './schemas/settings'
 
+export interface WebWorkspaceSummary {
+  name: string
+  path: string
+  active: boolean
+  documentCount: number
+  updatedAt?: string
+}
+
+export interface WebWorkspaceList {
+  current: string | null
+  workspaces: WebWorkspaceSummary[]
+}
+
+export interface WebNoteDocument {
+  documentId: string
+  title: string
+  filename: string
+  relativePath: string
+  content: string
+}
+
+export interface WebWorkspaceExport {
+  workspaceName: string
+  exportedAt: string
+  notes: Array<{ path: string; content: string }>
+}
+
 export interface KnowexApi {
   workspace: {
     get(): Promise<WorkspaceStatus>
@@ -43,9 +70,15 @@ export interface KnowexApi {
     paths(documentId?: string): Promise<WorkspacePaths>
     open(): Promise<void>
     revealNote(documentId: string): Promise<void>
+    listWorkspaces?(): Promise<WebWorkspaceList>
+    selectWorkspace?(name: string): Promise<WorkspaceStatus>
+    readNote?(documentId: string): Promise<WebNoteDocument>
+    exportWorkspace?(): Promise<WebWorkspaceExport>
   }
   document: {
     open(): Promise<OpenDocumentResult | null>
+    uploadFile?(file: File): Promise<OpenDocumentResult>
+    openSample?(): Promise<OpenDocumentResult>
     openRecent(documentId: string): Promise<OpenDocumentResult>
     list(): Promise<DocumentRecord[]>
   }

@@ -3,22 +3,13 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SecretCodec } from './secret-vault'
 
-const electronMock = vi.hoisted(() => ({
-  userData: '',
-  safeStorage: {
-    isEncryptionAvailable: vi.fn(() => true),
-    encryptString: vi.fn((value: string) => Buffer.from(`encrypted:${value}`)),
-    decryptString: vi.fn((value: Buffer) => value.toString('utf8').replace(/^encrypted:/, ''))
-  }
-}))
-
-vi.mock('electron', () => ({
-  app: {
-    getPath: () => electronMock.userData
-  },
-  safeStorage: electronMock.safeStorage
-}))
+const codecMock = {
+  isEncryptionAvailable: vi.fn(() => true),
+  encryptString: vi.fn((value: string) => `encrypted:${value}`),
+  decryptString: vi.fn((value: string) => value.replace(/^encrypted:/, ''))
+} satisfies SecretCodec
 
 const { ConfigStore } = await import('./config-store')
 const { CredentialStore } = await import('./credential-store')
@@ -29,14 +20,13 @@ const tempDirs: string[] = []
 async function makeStore(): Promise<{ dir: string; store: InstanceType<typeof ConfigStore>; configPath: string }> {
   const dir = await mkdtemp(join(tmpdir(), 'knowex-config-'))
   tempDirs.push(dir)
-  electronMock.userData = dir
-  return { dir, store: new ConfigStore(), configPath: join(dir, 'config.json') }
+  return { dir, store: new ConfigStore({ dataDir: dir, secretCodec: codecMock }), configPath: join(dir, 'config.json') }
 }
 
 beforeEach(() => {
-  electronMock.safeStorage.isEncryptionAvailable.mockReturnValue(true)
-  electronMock.safeStorage.encryptString.mockClear()
-  electronMock.safeStorage.decryptString.mockClear()
+  codecMock.isEncryptionAvailable.mockReturnValue(true)
+  codecMock.encryptString.mockClear()
+  codecMock.decryptString.mockClear()
 })
 
 afterEach(async () => {
@@ -70,7 +60,7 @@ describe('ConfigStore AI migration', () => {
       model: 'gpt-test'
     })
     expect(migrated.encryptedSecrets).toEqual({ 'legacy-openai': 'legacy-cipher' })
-    expect(electronMock.safeStorage.decryptString).not.toHaveBeenCalled()
+    expect(codecMock.decryptString).not.toHaveBeenCalled()
 
     const persisted = JSON.parse(await readFile(configPath, 'utf8'))
     expect(persisted.ai.version).toBe(2)
@@ -145,7 +135,7 @@ describe('ConfigStore AI migration', () => {
       zotero: { userId: '' }
     }), 'utf8')
 
-    const credentials = new CredentialStore(store)
+    const credentials = new CredentialStore(store, codecMock)
     const connections = new AIConnectionService(store, credentials)
 
     await connections.saveLegacyOpenAISettings({ baseUrl: 'https://api.openai.com/v1/responses', model: 'gpt-new', apiKey: '' })

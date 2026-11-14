@@ -1,9 +1,14 @@
-/** Owns Exa-only encrypted configuration in userData/exa.json; it never uses the AI config. */
-import { app, safeStorage } from 'electron'
+/**
+ * Owns Exa-only encrypted configuration in `<dataDir>/exa.json`; never shares AI config.
+ *
+ * Uses the Node.js `SecretCodec` and configurable `dataDir` so Exa search and
+ * connection testing operate identically in Web/Server mode without Electron.
+ */
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { ExaConnectionTestPublic, ExaSettingsPublic } from '../../shared/domain/models'
 import type { SaveExaSettingsInput } from '../../shared/contracts/ipc'
+import { NodeSecretVault, resolveKnowexDataDir, type SecretCodec } from '../storage/secret-vault'
 
 interface StoredExaSettings {
   version: 1
@@ -12,11 +17,24 @@ interface StoredExaSettings {
   lastTest?: ExaConnectionTestPublic
 }
 
+export interface ExaSettingsStoreOptions {
+  dataDir?: string
+  secretCodec?: SecretCodec
+}
+
 const EMPTY_SETTINGS: StoredExaSettings = { version: 1 }
 
 export class ExaSettingsStore {
+  private readonly dataDir: string
+  private readonly secretCodec: SecretCodec
+
+  constructor(options: ExaSettingsStoreOptions = {}) {
+    this.dataDir = options.dataDir ?? resolveKnowexDataDir()
+    this.secretCodec = options.secretCodec ?? new NodeSecretVault(this.dataDir)
+  }
+
   private get settingsPath(): string {
-    return join(app.getPath('userData'), 'exa.json')
+    return join(this.dataDir, 'exa.json')
   }
 
   async getPublicSettings(): Promise<ExaSettingsPublic> {
@@ -32,10 +50,10 @@ export class ExaSettingsStore {
     const settings = await this.read()
     if (input.clearApiKey) delete settings.encryptedApiKey
     if (input.apiKey?.trim()) {
-      if (!isStrongEncryptionAvailable()) {
-        throw new Error('The operating system credential encryption service is unavailable.')
+      if (!this.secretCodec.isEncryptionAvailable()) {
+        throw new Error('The credential encryption service is unavailable.')
       }
-      settings.encryptedApiKey = safeStorage.encryptString(input.apiKey.trim()).toString('base64')
+      settings.encryptedApiKey = this.secretCodec.encryptString(input.apiKey.trim())
     }
     settings.updatedAt = new Date().toISOString()
     // A credential change invalidates the meaning of a previous connection result.
@@ -55,11 +73,11 @@ export class ExaSettingsStore {
   async getApiKey(): Promise<string> {
     const settings = await this.read()
     if (!settings.encryptedApiKey) throw new Error('Configure an Exa API key in Settings before searching.')
-    if (!isStrongEncryptionAvailable()) {
-      throw new Error('The operating system credential encryption service is unavailable.')
+    if (!this.secretCodec.isEncryptionAvailable()) {
+      throw new Error('The credential encryption service is unavailable.')
     }
     try {
-      return safeStorage.decryptString(Buffer.from(settings.encryptedApiKey, 'base64'))
+      return this.secretCodec.decryptString(settings.encryptedApiKey)
     } catch (error) {
       throw new Error('The saved Exa API key could not be decrypted. Enter it again in Settings.', { cause: error })
     }
@@ -94,13 +112,6 @@ function isConnectionTest(value: unknown): value is ExaConnectionTestPublic {
   if (!value || typeof value !== 'object') return false
   const test = value as Partial<ExaConnectionTestPublic>
   return typeof test.success === 'boolean' && typeof test.message === 'string' && typeof test.checkedAt === 'string'
-}
-
-function isStrongEncryptionAvailable(): boolean {
-  if (!safeStorage.isEncryptionAvailable()) return false
-  if (process.platform !== 'linux') return true
-  const backend = (safeStorage as unknown as { getSelectedStorageBackend?: () => string }).getSelectedStorageBackend?.()
-  return backend !== 'basic_text'
 }
 
 function isMissingFile(error: unknown): boolean {

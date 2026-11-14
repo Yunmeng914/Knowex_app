@@ -53,9 +53,13 @@ export function PdfPageView(props: Props): React.JSX.Element {
 
   useEffect(() => {
     let cancelled = false
-    void props.document.getPage(props.pageNumber).then((page) => {
-      if (!cancelled) setPdfPage(page)
-    })
+    void props.document.getPage(props.pageNumber)
+      .then((page) => {
+        if (!cancelled) setPdfPage(page)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) console.error(error)
+      })
     return () => { cancelled = true }
   }, [props.document, props.pageNumber])
 

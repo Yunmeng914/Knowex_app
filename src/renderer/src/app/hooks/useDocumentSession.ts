@@ -52,11 +52,36 @@ export function useDocumentSession({ flash, showError }: Options) {
 
   const chooseWorkspace = async (): Promise<void> => {
     try {
+      const prevPath = workspace.path
       const status = await window.knowex.workspace.choose()
       setWorkspace(status)
       setDocuments(await window.knowex.document.list())
-      if (status.ready) flash('success', t('notice.workspaceReady'))
+      if (status.path !== prevPath) {
+        setCurrent(null)
+        setRegions([])
+        setTrash([])
+        setActiveRegionId(undefined)
+        setPage(1)
+        setTotalPages(1)
+        setActiveTool('none')
+        if (status.ready) flash('success', t('notice.workspaceReady'))
+      }
     } catch (error) { showError(error) }
+  }
+
+  const switchWorkspace = async (name: string): Promise<void> => {
+    if (!window.knowex.workspace.selectWorkspace) return
+    const status = await window.knowex.workspace.selectWorkspace(name)
+    setWorkspace(status)
+    setDocuments(await window.knowex.document.list())
+    setCurrent(null)
+    setRegions([])
+    setTrash([])
+    setActiveRegionId(undefined)
+    setPage(1)
+    setTotalPages(1)
+    setActiveTool('none')
+    if (status.ready) flash('success', t('notice.workspaceReady'))
   }
 
   const openLocal = async (): Promise<void> => {
@@ -64,6 +89,27 @@ export function useDocumentSession({ flash, showError }: Options) {
     try {
       const result = await window.knowex.document.open()
       if (result) await loadResult(result)
+    } catch (error) { showError(error) } finally { setBusy(false) }
+  }
+
+  const uploadFile = async (file: File): Promise<void> => {
+    if (!window.knowex.document.uploadFile) {
+      await openLocal()
+      return
+    }
+    setBusy(true)
+    try {
+      const result = await window.knowex.document.uploadFile(file)
+      await loadResult(result)
+    } catch (error) { showError(error) } finally { setBusy(false) }
+  }
+
+  const openSample = async (): Promise<void> => {
+    if (!window.knowex.document.openSample) return
+    setBusy(true)
+    try {
+      const result = await window.knowex.document.openSample()
+      await loadResult(result)
     } catch (error) { showError(error) } finally { setBusy(false) }
   }
 
@@ -170,6 +216,6 @@ export function useDocumentSession({ flash, showError }: Options) {
   return {
     workspace, setWorkspace, documents, setDocuments, current, regions, trash, activeRegionId, setActiveRegionId,
     page, setPage, totalPages, setTotalPages, scale, setScale, activeTool, setActiveTool, busy, setBusy,
-    loadResult, refreshRegions, chooseWorkspace, openLocal, openRecent, capture, createMarkup, saveRegion, deleteRegion, restoreRegion, purgeRegion, selectRegion, askAI, cancelAI
+    loadResult, refreshRegions, chooseWorkspace, switchWorkspace, openLocal, uploadFile, openSample, openRecent, capture, createMarkup, saveRegion, deleteRegion, restoreRegion, purgeRegion, selectRegion, askAI, cancelAI
   }
 }

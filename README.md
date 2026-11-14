@@ -1,10 +1,10 @@
-# Knowex
+# Knowex（网页端 / Web Edition）
 
-Knowex 是一款面向科研阅读的 Windows 优先、本地优先桌面应用。它可以阅读 PDF 和静态转换后的 PPT/PPTX，将页面中的关键证据保存为截图、文字批注、页面标签和 Markdown 笔记，并支持围绕当前证据进行可选的 AI 问答与 Exa 学术检索。
+Knowex 是一款面向科研阅读的本地优先文献阅读与证据管理网页应用（由 Knowex 桌面端代码库适配至浏览器 + Node.js/Express Web 服务）。它可以阅读 PDF 和静态转换后的 PPT/PPTX，将页面中的关键证据保存为截图、文字批注、页面标签和 Markdown 笔记，并支持围绕当前证据进行可选的 AI 问答与 Exa 学术检索。
 
 Knowex 聚焦一条明确的研究阅读流程：
 
-> 阅读文献 → 标记页面证据 → 记录理解与问题 → 可选地询问 AI 或检索来源 → 保存为可迁移的本地记录
+> 阅读文献 → 标记页面证据 → 记录理解与问题 → 可选地询问 AI 或检索来源 → 保存并导出可迁移的 Markdown 记录
 
 Knowex 不替代 Zotero，不自动上传整篇文档，不执行 OCR，也不构建云端知识库或 RAG 系统。源文档不会因批注而被修改，工作区中的 Markdown 和 PNG 文件才是用户可直接管理、备份与迁移的阅读成果。
 
@@ -45,7 +45,7 @@ Knowex 不会自动发送整篇 PDF、其他工作区文件、Zotero 数据库�
 - 本地 Codex CLI；
 - 本地 Claude Code CLI。
 
-云端 API Key 由 Electron `safeStorage` 在主进程中加密保存。本地 CLI 的登录状态由对应工具自行管理，Knowex 不读取、复制或保存 CLI Token。
+云端 API Key 由服务端使用 AES-256-GCM（`NodeSecretVault` + `.knowex-data/master.key` 或环境变量 `KNOWEX_ENCRYPTION_KEY`）加密保存，绝不回传到浏览器端。本地 CLI 的登录状态由对应工具自行管理，Knowex 不读取、复制或保存 CLI Token。
 
 设置界面只显示连接名称、模型、已配置状态、配置更新时间和脱敏测试结果，不回显 API Key。时间与测试记录用于帮助用户确认配置是否真正留存，不包含密钥或完整服务商响应。
 
@@ -111,65 +111,56 @@ Exa 只会在用户确认搜索、抓取正文或测试连接时发送请求，�
 
 ### 首次引导与界面
 
-- 首次启动只完成必要设置：选择本地工作区、了解核心阅读方式、确认截屏快捷键；
+- 首次启动自动初始化 `default` 服务端工作区与内置示例文献（支持随时通过工作区选择器创建或切换工作区），并保留“本地阅读、批注记录、快捷键与剪贴板粘贴”三步上手引导（也支持 `?autostart=1` 直达主界面）；
 - Zotero、AI 和 Exa 等可选能力延后到用户第一次使用对应功能时配置；
-- 可从 **帮助 → 开始使用** 再次打开上手指南；
-- 顶部只保留“打开文件、研究、框选区域”三个主要文字入口，Zotero、Exa 和显式写回统一收纳在“研究”菜单中；
+- 可从 **工具 → 使用指南** 再次打开上手指南；
+- 顶部只保留“打开文件、研究、工具、框选区域”四个主要文字入口，Zotero、Exa 和显式写回统一收纳在“研究”菜单中，Markdown 笔记预览导出、目录路径、30 天回收站、工作区切换和指南统一收纳在“工具”菜单中；
+- 支持浏览器文件上传、拖拽 PDF/PPT/PPTX 至阅读区、内置示例文献一键打开，以及 `Ctrl+V / Cmd+V` 粘贴剪贴板截图到聊天栏；
 - 阅读主题、分页/连续模式和横向/纵向分屏统一收纳在阅读外观菜单中，常用的缩放与批注工具保持直接可用；
 - 选中文字或框选证据后，复制、Exa、AI 和翻译使用同一组快捷操作；批注中的个人笔记、Exa 与 AI 以独立折叠模块组织；
-- 阅读器和批注记录提供适合对象的右键快捷操作，删除等关键动作仍保留可见入口；
+- 阅读器和批注记录提供适合对象的右键快捷操作，删除等关键动作仍保留可见入口与应用内确认弹窗；
 - 设置按“通用、AI 连接、Exa 搜索、Zotero”分类显示，避免不同作用域的选项混在同一长表单中；
 - API 凭据保存后会显示已配置状态和上次更新时间；AI 与 Exa 还会保留最近一次脱敏连接测试记录；
 - 支持中文和英文界面；
-- 可调整宽度的三栏桌面布局；
-- 可查看工作区、Markdown、临时目录和当前笔记的本地路径。
+- 可调整宽度的三栏网页端布局；
+- 可预览、复制、下载当前文献 `.md` 或导出全部工作区笔记包。
 
 ## 首次配置与启动
 
 ### 必需环境
 
-- Windows 10 或更高版本；
 - Node.js 22 或更高版本；
 - npm；
-- 首次安装依赖时可访问 npm 软件源的网络连接。
+- 现代桌面浏览器（Chrome / Edge / Firefox / Safari）。
 
 LibreOffice、Zotero、AI 和 Exa 都是可选功能，不需要在第一次启动前全部配置。
 
-### 代码命令：首次配置
+### 代码命令：启动网页端服务
 
-在项目根目录打开 PowerShell：
+在项目根目录执行：
 
-```powershell
-npm run setup
+```bash
+npm install
 npm run dev
 ```
 
-`npm run setup` 会检查 Node.js，安装或增量更新依赖，检查并修复 Electron 运行时，然后报告 LibreOffice、Zotero、Codex CLI 和 Claude Code CLI 等可选集成的状态。
+开发模式会在 `http://0.0.0.0:3000` 启动 Express API 服务与 Vite SPA 中间件；如需构建生产产物并启动：
 
-以后需要重新诊断环境时运行：
-
-```powershell
-npm run doctor
+```bash
+npm run build
+npm start
 ```
 
-诊断结果中：
+可选环境变量见 `.env.example`（`KNOWEX_DATA_DIR` 默认 `.knowex-data`，`KNOWEX_ENCRYPTION_KEY` 用于覆盖自动生成的加密主密钥）。
 
-- `[OK]` 表示功能可用；
-- `[--]` 表示可选功能尚未配置；
-- `[!!]` 表示存在会阻止开发版启动的问题。
+### 应用内首次使用
 
-诊断命令不会安装外部软件、修改应用设置或发送真实 AI 请求。
-
-### 应用内首次设置
-
-1. 首次启动时点击 **选择工作区**，指定一个专门保存 Knowex 数据的文件夹；未完成该步骤前，界面不会引导用户执行必然失败的打开操作。
-2. 完成三步上手引导；Zotero、AI 和 Exa 均可跳过并在需要时再配置。
-3. 使用 **打开文件** 打开一个普通 PDF。
-4. 创建一条截图或文字批注。
-5. 确认工作区中已经生成 Markdown，以及对应的 PNG 截图。
+1. 打开浏览器访问服务地址，服务端已自动创建 `default` 工作区并预置一份可交互的示例 PDF；也可点击右上角工作区标识随时切换或新建隔离工作区。
+2. 阅读或跳过三步上手引导；Zotero、AI 和 Exa 均可延后配置。
+3. 在欢迎页点击 **打开示例文献**，或点击 **上传文献** / 直接拖拽本地 PDF、PPT、PPTX 到阅读区。
+4. 创建一条截图、文字高亮、下划线或页面标签批注。
+5. 通过 **工具 → Markdown 笔记预览与导出** 查看实时生成的 Markdown 并下载 `.md`。
 6. 根据实际需要再配置 LibreOffice、Zotero、AI 或 Exa。
-
-不建议将源码目录、系统目录、Zotero 数据目录或临时下载目录设为工作区。源码依赖和用户数据具有不同的生命周期，应分开存放。
 
 ### 可选功能配置
 
@@ -260,7 +251,7 @@ Workspace/
 - `.knowex/imports/`：从 Zotero 导入的 PDF 副本，以及演示文稿的转换结果；
 - `.knowex/tmp/`：截图等临时文件的原子写入暂存区。
 
-Exa Key 不保存在工作区中。它使用 `safeStorage` 加密后单独写入 Electron 应用配置目录下的 `exa.json`。
+Exa Key 不保存在工作区中。它使用服务端 `NodeSecretVault`（AES-256-GCM）加密后单独写入数据目录（`.knowex-data/exa.json`）。
 
 ## 注意事项
 
@@ -300,20 +291,17 @@ Exa Key 不保存在工作区中。它使用 `safeStorage` 加密后单独写入
 
 ## 开发与构建
 
-### 代码命令：检查、构建和打包
+### 代码命令：检查、测试与构建
 
-```powershell
+```bash
 npm run typecheck
 npm run test
+npx tsx --test src/server/web-app.test.ts
 npm run build
-npm run package:win
+npm start
 ```
 
-Windows 安装包输出到 `release/`。当前技术栈包括 Electron、React、TypeScript、Vite、PDF.js、Zod 和 Vitest。
-
-安装版暂不包含在线自动更新器。升级安装版时，需要下载新安装包并覆盖安装；应用设置和单独选择的工作区会继续保留。
-
-源码更新后，仅当 `package.json` 或 `package-lock.json` 变化时才需要重新执行 `npm run setup` 或 `npm install`。仅代码变化时可以直接执行 `npm run dev`。
+生产构建会通过 Vite 将前端输出至 `dist/client/`，并通过 esbuild 将服务端构建至 `dist/server.mjs`，由根目录 `server.ts` 在 `0.0.0.0:3000` 统一托管。当前技术栈包括 Express 5、React 19、TypeScript、Vite、PDF.js、Zod、Vitest 与 Node.js 内置测试运行器。
 
 ## 代码框架
 
@@ -322,68 +310,64 @@ Windows 安装包输出到 `release/`。当前技术栈包括 Electron、React�
 ```text
 React 功能界面
   -> 应用级 hooks
-  -> 类型化 window.knowex API
-  -> context-isolated preload bridge
-  -> 经过信任检查和 Schema 校验的 IPC handlers
-  -> 主进程服务与外部适配器
-  -> 本地文件 / LibreOffice / Zotero API / AI endpoint / Exa API
+  -> 类型化 window.knowex API（src/renderer/src/web/web-knowex-api.ts）
+  -> HTTP /api/* + 二进制上传 + Schema 校验（src/server/create-app.ts）
+  -> WebWorkspaceManager 与领域服务（src/main/app-services.ts）
+  -> 本地数据目录 / LibreOffice / Zotero API / AI endpoint / Exa API
 
-共享领域模型与 IPC 契约
-  -> 可被各层导入
-  -> 不得依赖 React、Electron 或 Node.js API
+共享领域模型与契约（src/shared/）
+  -> 可被前后端各层导入
+  -> 不得依赖 React、Express 或浏览器/Node 专属 API
 ```
 
-渲染进程不能直接访问文件系统、凭据、Zotero、LibreOffice 或子进程。所有高权限能力都通过窄化、类型化并经过校验的 IPC 交给主进程。
+浏览器渲染端不能直接访问服务端文件系统、加密凭据、LibreOffice 或外部 AI/Exa 密钥。所有高权限能力与 API Key 均在 Express 服务端执行，并通过经过 Zod 校验的 `/api/*` 契约暴露给前端。
 
 ### 代码目录结构
 
 ```text
 Knowex/
-├─ src/
-│  ├─ main/
-│  │  ├─ ai/             # AI 连接、Prompt、端点策略、云端与 CLI 适配器
-│  │  ├─ assets/         # 截图资产和批注应用服务
-│  │  ├─ clipboard/      # 系统剪贴板图片监听
-│  │  ├─ document/       # 文档导入和 LibreOffice 演示文稿转换
-│  │  ├─ exa/            # Exa 检索、正文抓取和独立加密设置
-│  │  ├─ ipc/            # 按领域拆分的可信 IPC handlers
-│  │  ├─ menu/           # 原生菜单与渲染器命令
-│  │  ├─ notes/          # Markdown 投影
-│  │  ├─ shortcuts/      # 全局截图快捷键生命周期
-│  │  ├─ storage/        # 配置、凭据、工作区索引和维护
-│  │  └─ zotero/         # Local API、数据映射、导入和 Web API 导出
-│  ├─ preload/           # 最小化 contextBridge，不承载业务逻辑
-│  ├─ renderer/src/
-│  │  ├─ app/            # 界面组合和应用级 hooks
-│  │  ├─ components/     # 可复用布局、动作菜单和右键菜单
-│  │  ├─ features/       # 阅读器、批注、证据工作流、截图、聊天、Exa、文献库和设置
-│  │  ├─ i18n/           # 中英文类型化词典和语言状态
-│  │  └─ styles/         # 基础、外壳、阅读器、批注和对话框样式
-│  └─ shared/
-│     ├─ contracts/      # IPC 通道、Zod Schema 和公开 API
-│     └─ domain/         # 文档、批注、工作区、设置、Zotero 和 Exa 实体
+├─ server.ts                  # Web 服务统一入口（监听 0.0.0.0:3000，开发/生产分发）
+├─ vite.config.ts             # 前端 Vite SPA 配置（输出 dist/client）
 ├─ scripts/
-│  ├─ setup.mjs                     # 首次配置编排
-│  ├─ check-environment.mjs         # 只读环境诊断
-│  ├─ environment-utils.mjs         # 统一路径、命令与 npm 检测规则
-│  └─ ensure-electron-runtime.mjs   # Electron 安装和注册修复
-├─ docs/                  # 架构、开发、能力、安全和审计文档
-├─ resources/             # 打包资源和非私密测试资产
-└─ package.json           # 开发、验证、构建和 Windows 打包命令
+│  └─ build-server.mjs        # 使用 esbuild 打包 Express 服务端至 dist/server.mjs
+├─ src/
+│  ├─ server/
+│  │  ├─ create-app.ts        # Express 路由工厂、Zod 校验与 Vite/静态资源挂载
+│  │  ├─ workspace-manager.ts # 多工作区管理、示例文献预置与 Markdown 读取/导出
+│  │  └─ web-app.test.ts      # node:test 服务端与 API 集成测试
+│  ├─ main/
+│  │  ├─ app-services.ts      # 核心领域服务装配容器
+│  │  ├─ ai/                  # AI 连接、Prompt、端点策略、云端与 CLI 适配器
+│  │  ├─ assets/              # 截图资产和批注应用服务
+│  │  ├─ document/            # 上传导入、内置示例 PDF 生成与 LibreOffice 转换
+│  │  ├─ exa/                 # Exa 检索、正文抓取和独立加密设置
+│  │  ├─ notes/               # Markdown 投影
+│  │  ├─ storage/             # AES-256-GCM SecretVault、配置、凭据、索引与维护
+│  │  └─ zotero/              # Local API、数据映射、导入和 Web API 导出
+│  ├─ renderer/src/
+│  │  ├─ web/                 # window.knowex HTTP/Browser 适配器
+│  │  ├─ app/                 # 界面组合和应用级 hooks
+│  │  ├─ components/          # 可复用布局、动作菜单、右键菜单和确认弹窗
+│  │  ├─ features/            # 阅读器、批注、工作区切换、Markdown 预览、Exa、设置
+│  │  ├─ i18n/                # 中英文类型化词典和语言状态
+│  │  └─ styles/              # 基础、外壳、阅读器、批注和对话框样式
+│  └─ shared/
+│     ├─ contracts/           # 共享契约、Zod Schema 和公开 KnowexApi 接口
+│     └─ domain/              # 文档、批注、工作区、设置、Zotero 和 Exa 实体
+├─ docs/                      # 架构、开发、能力、安全和审计文档
+├─ resources/                 # 静态资源与视觉测试图
+└─ package.json               # dev / start / typecheck / test / build 脚本
 ```
 
 ### 核心模块关系
 
-- `src/main/app-services.ts` 负责创建长期服务；IPC 注册器只做信任检查、输入校验和委派。
-- `src/renderer/src/app/App.tsx` 负责界面组合；文档流程、Zotero 状态和通知由应用级 hooks 管理。
+- `server.ts` 与 `src/server/create-app.ts` 负责启动 HTTP 服务、校验所有 `/api/*` 请求并在开发/生产模式下托管 SPA。
+- `src/server/workspace-manager.ts` 管理 `.knowex-data/workspaces/*` 隔离目录、自动初始化默认工作区与示例文献，以及 Markdown 笔记读取与打包导出。
+- `src/renderer/src/web/web-knowex-api.ts` 在浏览器启动时挂载 `window.knowex`，复用既有 hooks 与界面契约而无需修改核心阅读器与批注逻辑。
+- `src/main/storage/secret-vault.ts` 提供基于 Node.js `crypto` AES-256-GCM 的服务端密钥加解密，保持凭据不回显与不落明文。
+- `src/renderer/src/app/App.tsx` 负责界面组合；文档会话、工作区切换、拖拽上传、快捷键与确认弹窗由应用级 hooks 和独立模态框模块协同处理。
 - `src/renderer/src/features/reader/` 负责 PDF 渲染、视口、导航、搜索和阅读工具。
-- `src/renderer/src/features/research/` 只定义证据快捷操作与工作流意图；Exa、AI 和持久化仍由各自模块处理。
-- `src/renderer/src/features/annotations/` 将个人笔记、Exa 和 AI 组合为可折叠工作区，但三个功能保持独立状态和服务边界。
-- `src/main/assets/`、`src/main/notes/` 与 `src/main/storage/` 共同完成批注、PNG、Markdown 和索引持久化。
-- `src/main/ai/` 通过 Provider Registry 和不同 connector 隔离云端协议与本地 CLI。
-- `src/main/exa/` 是独立检索边界，不进入 AI Provider Registry；其他模块只使用经过映射的公开来源 DTO。
-- `src/main/zotero/` 将 HTTP、纯数据映射、导入流程和显式写回拆分为独立职责。
-- `scripts/environment-utils.mjs` 是维护脚本的统一环境规则来源，避免配置、诊断和 Electron 修复产生版本分叉。
+- `src/renderer/src/features/research/` 与 `src/renderer/src/features/annotations/` 保留个人笔记、Exa 和 AI 的独立状态与服务边界。
 
 ### 兼容性约束
 

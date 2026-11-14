@@ -280,6 +280,9 @@ export class LocalToolDetectionService {
   }
 
   private async resolveClaudeCandidate(candidate: string, checkedAt: string): Promise<LocalToolDetectionPublic> {
+    if (!isSafeExecutablePath(candidate)) {
+      return { tool: 'claude-code', installed: false, executablePath: candidate, status: 'invalid-path', message: 'Claude Code path is not valid.', checkedAt }
+    }
     if (isExpectedExecutableFile(candidate)) {
       return { tool: 'claude-code', installed: true, executablePath: candidate, status: 'unknown', message: 'Claude Code executable candidate found.', checkedAt }
     }

@@ -1,5 +1,4 @@
-/** Exa use-case facade used only by trusted IPC handlers; owns settings, retrieval, and URL opening. */
-import { shell } from 'electron'
+/** Exa use-case facade used by server routes; owns settings, retrieval, and URL validation. */
 import type { ExaConnectionTestPublic, ExaContentPublic, ExaSearchPublic, ExaSettingsPublic } from '../../shared/domain/models'
 import type { GetExaContentInput, SaveExaSettingsInput, SearchExaInput } from '../../shared/contracts/ipc'
 import { ExaClient } from './exa-client'
@@ -51,12 +50,13 @@ export class ExaService {
     return this.client.getContent(input.url, await this.settings.getApiKey())
   }
 
-  async openSource(url: string): Promise<void> {
+  /** Validates that an external source URL is safe public HTTP/HTTPS before opening on the web client. */
+  async openSource(url: string): Promise<{ url: string }> {
     const parsed = new URL(url)
     if (!['https:', 'http:'].includes(parsed.protocol) || parsed.username || parsed.password) {
       throw new Error('Only public HTTP and HTTPS source URLs can be opened.')
     }
     parsed.hash = ''
-    await shell.openExternal(parsed.toString())
+    return { url: parsed.toString() }
   }
 }

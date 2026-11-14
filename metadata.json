@@ -1,0 +1,5 @@
+{
+  "name": "Knowex",
+  "description": "Web-adapted research document reader with region-based notes, Markdown persistence, Exa academic search, and multi-provider AI Q&A.",
+  "requestFramePermissions": []
+}

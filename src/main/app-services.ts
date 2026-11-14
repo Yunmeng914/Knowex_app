@@ -57,7 +57,7 @@ export function createAppServices(config: ConfigStore): AppServices {
   registry.register(new ClaudeCodeCliConnector(processRunner))
   const aiConnections = new AIConnectionService(config, credentials, registry)
   const localTools = new LocalToolDetectionService(processRunner)
-  const exa = new ExaService(new ExaSettingsStore(), new ExaClient())
+  const exa = new ExaService(new ExaSettingsStore({ dataDir: config.dataDir, secretCodec: config.secretCodec }), new ExaClient())
   return {
     config,
     repository,

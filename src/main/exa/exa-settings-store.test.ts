@@ -3,21 +3,13 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SecretCodec } from '../storage/secret-vault'
 
-const electronMock = vi.hoisted(() => ({
-  userData: '',
-  safeStorage: {
-    isEncryptionAvailable: vi.fn(() => true),
-    encryptString: vi.fn((value: string) => Buffer.from(`encrypted:${value}`)),
-    decryptString: vi.fn((value: Buffer) => value.toString('utf8').replace(/^encrypted:/, '')),
-    getSelectedStorageBackend: vi.fn(() => 'dpapi')
-  }
-}))
-
-vi.mock('electron', () => ({
-  app: { getPath: () => electronMock.userData },
-  safeStorage: electronMock.safeStorage
-}))
+const codecMock = {
+  isEncryptionAvailable: vi.fn(() => true),
+  encryptString: vi.fn((value: string) => Buffer.from(value, 'utf8').toString('base64')),
+  decryptString: vi.fn((value: string) => Buffer.from(value, 'base64').toString('utf8'))
+} satisfies SecretCodec
 
 const { ExaSettingsStore } = await import('./exa-settings-store')
 const tempDirs: string[] = []
@@ -25,13 +17,12 @@ const tempDirs: string[] = []
 async function makeStore(): Promise<{ store: InstanceType<typeof ExaSettingsStore>; settingsPath: string }> {
   const dir = await mkdtemp(join(tmpdir(), 'knowex-exa-settings-'))
   tempDirs.push(dir)
-  electronMock.userData = dir
-  return { store: new ExaSettingsStore(), settingsPath: join(dir, 'exa.json') }
+  return { store: new ExaSettingsStore({ dataDir: dir, secretCodec: codecMock }), settingsPath: join(dir, 'exa.json') }
 }
 
 beforeEach(() => {
-  electronMock.safeStorage.encryptString.mockClear()
-  electronMock.safeStorage.decryptString.mockClear()
+  codecMock.encryptString.mockClear()
+  codecMock.decryptString.mockClear()
 })
 
 afterEach(async () => {

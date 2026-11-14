@@ -31,9 +31,9 @@ export function OnboardingDialog(props: Props): React.JSX.Element | null {
   ]
   return (
     <div className="dialog-backdrop onboarding-backdrop">
-      <section className="dialog onboarding-dialog" role="dialog" aria-modal="true">
-        <button type="button" className="onboarding-close" title={t('onboarding.skip')} onClick={props.onFinish}><X size={18} /></button>
-        <div className="onboarding-brand"><span>K</span><div><strong>Knowex</strong><small>{t('onboarding.subtitle')}</small></div></div>
+      <section className="dialog onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+        <button type="button" className="onboarding-close" title={t('onboarding.skip')} aria-label={t('onboarding.skip')} onClick={props.onFinish}><X size={18} /></button>
+        <div className="onboarding-brand"><span>K</span><div><strong id="onboarding-title">Knowex</strong><small>{t('onboarding.subtitle')}</small></div></div>
         <div className="onboarding-progress">{pages.map((_, index) => <i key={index} className={index <= step ? 'active' : ''} />)}</div>
         {pages[step]}
         <div className="onboarding-actions"><button type="button" className="button" disabled={step === 0 || saving} onClick={() => setStep((value) => value - 1)}><ChevronLeft size={15} />{t('onboarding.previous')}</button>{step < pages.length - 1 ? <button type="button" className="button primary" disabled={step === 0 && !props.workspaceReady} onClick={() => setStep((value) => value + 1)}>{t('onboarding.next')}<ChevronRight size={15} /></button> : <button type="button" className="button primary" disabled={saving || !shortcut.trim()} onClick={async () => { setSaving(true); try { await props.onSaveShortcut(shortcut.trim()); props.onFinish() } finally { setSaving(false) } }}>{t('onboarding.finish')}</button>}</div>

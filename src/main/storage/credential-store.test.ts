@@ -2,22 +2,13 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SecretCodec } from './secret-vault'
 
-const electronMock = vi.hoisted(() => ({
-  userData: '',
-  safeStorage: {
-    isEncryptionAvailable: vi.fn(() => true),
-    encryptString: vi.fn((value: string) => Buffer.from(`cipher:${value}`)),
-    decryptString: vi.fn((value: Buffer) => value.toString('utf8').replace(/^cipher:/, ''))
-  }
-}))
-
-vi.mock('electron', () => ({
-  app: {
-    getPath: () => electronMock.userData
-  },
-  safeStorage: electronMock.safeStorage
-}))
+const codecMock = {
+  isEncryptionAvailable: vi.fn(() => true),
+  encryptString: vi.fn((value: string) => `cipher:${value}`),
+  decryptString: vi.fn((value: string) => value.replace(/^cipher:/, ''))
+} satisfies SecretCodec
 
 const { ConfigStore } = await import('./config-store')
 const { CredentialStore } = await import('./credential-store')
@@ -27,15 +18,14 @@ const tempDirs: string[] = []
 async function makeCredentialStore(): Promise<{ config: InstanceType<typeof ConfigStore>; credentials: InstanceType<typeof CredentialStore> }> {
   const dir = await mkdtemp(join(tmpdir(), 'knowex-credentials-'))
   tempDirs.push(dir)
-  electronMock.userData = dir
-  const config = new ConfigStore()
-  return { config, credentials: new CredentialStore(config) }
+  const config = new ConfigStore({ dataDir: dir, secretCodec: codecMock })
+  return { config, credentials: new CredentialStore(config, codecMock) }
 }
 
 beforeEach(() => {
-  electronMock.safeStorage.isEncryptionAvailable.mockReturnValue(true)
-  electronMock.safeStorage.encryptString.mockClear()
-  electronMock.safeStorage.decryptString.mockClear()
+  codecMock.isEncryptionAvailable.mockReturnValue(true)
+  codecMock.encryptString.mockClear()
+  codecMock.decryptString.mockClear()
 })
 
 afterEach(async () => {
@@ -57,7 +47,7 @@ describe('CredentialStore', () => {
 
   it('throws when encryption is unavailable for a new key', async () => {
     const { credentials } = await makeCredentialStore()
-    electronMock.safeStorage.isEncryptionAvailable.mockReturnValue(false)
+    codecMock.isEncryptionAvailable.mockReturnValue(false)
 
     await expect(credentials.saveAIKey('legacy-openai', 'test-key-not-real')).rejects.toThrow('credential encryption service is unavailable')
   })

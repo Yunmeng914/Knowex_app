@@ -1,10 +1,10 @@
 /** Versioned app configuration store; secrets remain encrypted and writes use atomic replacement. */
-import { app, safeStorage } from 'electron'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { AICapabilities, AIConnectionTestPublic, AIProvider, AISettingsPublic, AITransport, AppLanguage, AppSettingsPublic, CapabilityVerificationPublic, LocalToolStatus, SaveZoteroSyncPreferenceInput, ZoteroOpenOptions, ZoteroSyncPreference, ZoteroWebSettingsPublic } from '../../shared/domain/models'
 import type { SaveAppSettingsInput, SaveZoteroSettingsInput } from '../../shared/contracts/ipc'
 import type { CredentialDestinationFingerprint } from '../ai/credential-destination'
+import { NodeSecretVault, resolveKnowexDataDir, type SecretCodec } from './secret-vault'
 
 interface AppConfig {
   workspacePath?: string
@@ -54,6 +54,11 @@ export interface StoredAIConfigV2 {
   credentialFingerprints?: Record<string, CredentialDestinationFingerprint>
 }
 
+export interface ConfigStoreOptions {
+  dataDir?: string
+  secretCodec?: SecretCodec
+}
+
 const LEGACY_OPENAI_CONNECTION_ID = 'legacy-openai'
 
 const DEFAULT_AI_SETTINGS = {
@@ -77,8 +82,16 @@ const DEFAULT_APP: AppSettingsPublic = {
 const CURRENT_ONBOARDING_VERSION = 2
 
 export class ConfigStore {
+  readonly dataDir: string
+  readonly secretCodec: SecretCodec
+
+  constructor(options: ConfigStoreOptions = {}) {
+    this.dataDir = options.dataDir ?? resolveKnowexDataDir()
+    this.secretCodec = options.secretCodec ?? new NodeSecretVault(this.dataDir)
+  }
+
   private get configPath(): string {
-    return join(app.getPath('userData'), 'config.json')
+    return join(this.dataDir, 'config.json')
   }
 
   async getWorkspacePath(): Promise<string | null> {
@@ -168,8 +181,8 @@ export class ConfigStore {
     const config = await this.read()
     config.zotero.userId = input.userId.trim()
     if (input.apiKey?.trim()) {
-      if (!safeStorage.isEncryptionAvailable()) throw new Error('The operating system credential encryption service is unavailable.')
-      config.zotero.encryptedApiKey = safeStorage.encryptString(input.apiKey.trim()).toString('base64')
+      if (!this.secretCodec.isEncryptionAvailable()) throw new Error('The credential encryption service is unavailable.')
+      config.zotero.encryptedApiKey = this.secretCodec.encryptString(input.apiKey.trim())
     }
     config.zotero.updatedAt = new Date().toISOString()
     await this.write(config)
@@ -179,10 +192,10 @@ export class ConfigStore {
   async getZoteroCredentials(): Promise<{ userId: string; apiKey: string }> {
     const config = await this.read()
     if (!config.zotero.userId || !config.zotero.encryptedApiKey) throw new Error('请先在设置中配置具有写权限的 Zotero Web API Key 和用户 ID。')
-    if (!safeStorage.isEncryptionAvailable()) throw new Error('The operating system credential encryption service is unavailable.')
+    if (!this.secretCodec.isEncryptionAvailable()) throw new Error('The credential encryption service is unavailable.')
     return {
       userId: config.zotero.userId,
-      apiKey: safeStorage.decryptString(Buffer.from(config.zotero.encryptedApiKey, 'base64'))
+      apiKey: this.secretCodec.decryptString(config.zotero.encryptedApiKey)
     }
   }
 

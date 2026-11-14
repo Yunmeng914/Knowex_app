@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LocalToolDetectionService } from './local-tool-detection-service'
 import type { SecureProcessRunnerLike } from './secure-process-runner'
@@ -172,9 +172,10 @@ describe('LocalToolDetectionService', () => {
   })
 
   it('keeps searching Claude Code candidates after the first executable fails', async () => {
-    const bad = await touchExecutable('claude.exe')
-    const good = await touchExecutable('claude.exe')
-    vi.stubEnv('PATH', `${bad.dir};${good.dir}`)
+    const claudeBin = process.platform === 'win32' ? 'claude.exe' : 'claude'
+    const bad = await touchExecutable(claudeBin)
+    const good = await touchExecutable(claudeBin)
+    vi.stubEnv('PATH', `${bad.dir}${delimiter}${good.dir}`)
     const runner = { run: vi.fn(async ({ executablePath, args }: { executablePath: string; args: string[] }) => {
       if (args.length === 1 && args[0] === 'claude') return { stdout: '', stderr: '', exitCode: 1, signal: null, durationMs: 1 }
       if (executablePath === bad.file) return { stdout: '', stderr: 'broken', exitCode: 1, signal: null, durationMs: 1 }
@@ -240,9 +241,10 @@ describe('LocalToolDetectionService', () => {
   })
 
   it('chooses the first candidate that fully validates among multiple candidates', async () => {
-    const bad = await touchExecutable('codex.exe')
-    const good = await touchExecutable('codex.exe')
-    vi.stubEnv('PATH', `${bad.dir};${good.dir}`)
+    const codexBin = process.platform === 'win32' ? 'codex.exe' : 'codex'
+    const bad = await touchExecutable(codexBin)
+    const good = await touchExecutable(codexBin)
+    vi.stubEnv('PATH', `${bad.dir}${delimiter}${good.dir}`)
     const runner = { run: vi.fn(async ({ executablePath, args }: { executablePath: string; args: string[] }) => {
       if (args.length === 1 && args[0] === 'codex') return { stdout: '', stderr: '', exitCode: 1, signal: null, durationMs: 1 }
       if (executablePath === bad.file) return { stdout: args[0] === '--version' ? 'codex-cli 0.1.0' : '', stderr: args[0] === '--version' ? '' : 'unknown command', exitCode: args[0] === '--version' ? 0 : 1, signal: null, durationMs: 1 }
@@ -254,7 +256,7 @@ describe('LocalToolDetectionService', () => {
   })
 
   it('reports not installed only after all non-desktop candidates fail', async () => {
-    const bad = await touchExecutable('codex.exe')
+    const bad = await touchExecutable(process.platform === 'win32' ? 'codex.exe' : 'codex')
     vi.stubEnv('PATH', bad.dir)
     const runner = { run: vi.fn(async ({ args }: { args: string[] }) => {
       if (args.length === 1 && args[0] === 'codex') return { stdout: '', stderr: '', exitCode: 1, signal: null, durationMs: 1 }

@@ -2,6 +2,7 @@
 import { CheckCircle2, ExternalLink, KeyRound, LoaderCircle, Search, ShieldCheck, Trash2, TriangleAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ExaConnectionTestPublic, ExaSettingsPublic } from '@shared/domain/models'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { useI18n } from '../../i18n/I18nProvider'
 
 interface Props {
@@ -17,6 +18,7 @@ export function ExaSettingsPanel({ onError }: Props): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [test, setTest] = useState<ExaConnectionTestPublic>()
   const [saved, setSaved] = useState(false)
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false)
 
   useEffect(() => {
     void window.knowex.exa.getSettings().then(setSettings).catch(onError)
@@ -38,7 +40,11 @@ export function ExaSettingsPanel({ onError }: Props): React.JSX.Element {
   }
 
   const clear = (): void => {
-    if (!window.confirm(t('exa.settings.clearConfirm'))) return
+    setConfirmClearOpen(true)
+  }
+
+  const executeClear = (): void => {
+    setConfirmClearOpen(false)
     void run(async () => {
       setSettings(await window.knowex.exa.saveSettings({ clearApiKey: true }))
       setApiKey('')
@@ -82,6 +88,15 @@ export function ExaSettingsPanel({ onError }: Props): React.JSX.Element {
       </div>
       {saved && <div className="exa-test-result success"><CheckCircle2 size={15} /><span>{language === 'en-US' ? 'Saved locally. The key will not be displayed again.' : '已保存到本机，API Key 之后不会回显。'}</span></div>}
       {visibleTest && <div className={`exa-test-result ${visibleTest.success ? 'success' : 'failed'}`}>{visibleTest.success ? <CheckCircle2 size={15} /> : <TriangleAlert size={15} />}<span>{visibleTest.message}{visibleTest.latencyMs ? ` · ${visibleTest.latencyMs} ms` : ''} · {formatCheckedAt(visibleTest.checkedAt, language)}</span></div>}
+      <ConfirmDialog
+        open={confirmClearOpen}
+        title={t('exa.settings.clear')}
+        message={t('exa.settings.clearConfirm')}
+        confirmLabel={t('exa.settings.clear')}
+        busy={busy}
+        onCancel={() => setConfirmClearOpen(false)}
+        onConfirm={executeClear}
+      />
     </section>
   )
 }

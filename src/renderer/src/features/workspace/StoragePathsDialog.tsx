@@ -33,8 +33,8 @@ export function StoragePathsDialog({ open, documentId, onClose, onError }: Props
 
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="dialog storage-paths-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="dialog-header"><h2>{t('paths.title')}</h2><button type="button" className="icon-button" onClick={onClose}><X size={18} /></button></div>
+      <section className="dialog storage-paths-dialog" role="dialog" aria-modal="true" aria-labelledby="storage-paths-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="dialog-header"><h2 id="storage-paths-title">{t('paths.title')}</h2><button type="button" className="icon-button" aria-label={t('common.close')} onClick={onClose}><X size={18} /></button></div>
         {!paths.workspacePath ? <p className="empty-copy">{t('paths.empty')}</p> : <div className="path-list">
           <PathRow label={t('paths.workspace')} value={paths.workspacePath} onCopy={() => void copy(paths.workspacePath)} />
           <PathRow label={t('paths.notes')} value={paths.notesDirectory} onCopy={() => void copy(paths.notesDirectory)} />
@@ -54,5 +54,5 @@ export function StoragePathsDialog({ open, documentId, onClose, onError }: Props
 
 function PathRow({ label, value, onCopy }: { label: string; value: string | null; onCopy(): void }): React.JSX.Element {
   const { t } = useI18n()
-  return <div className="path-row"><span>{label}</span><code>{value ?? '—'}</code><button type="button" className="icon-button" disabled={!value} title={t('paths.copy')} onClick={onCopy}><Clipboard size={14} /></button></div>
+  return <div className="path-row"><span>{label}</span><code>{value ?? '—'}</code><button type="button" className="icon-button" disabled={!value} title={t('paths.copy')} aria-label={`${t('paths.copy')}: ${label}`} onClick={onCopy}><Clipboard size={14} /></button></div>
 }

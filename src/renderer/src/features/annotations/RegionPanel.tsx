@@ -7,6 +7,7 @@ import { ArrowLeft, BookOpen, Bot, CheckCircle2, ChevronRight, FileText, Highlig
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { annotationKind, type AnnotationColor, type ChatMessage, type RegionRecord, type TrashedRegionRecord } from '@shared/domain/models'
 import { useI18n } from '../../i18n/I18nProvider'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ContextActionMenu } from '../../components/ContextActionMenu'
 import { AnnotationChat, type TransientChatImage } from '../chat/AnnotationChat'
 import type { AnnotationToolRequest } from '../research/evidence-workflow'
@@ -50,6 +51,7 @@ export function RegionPanel({ regions, trash, transientImages, activeRegionId, t
   const active = useMemo(() => regions.find((region) => region.note.id === activeRegionId), [regions, activeRegionId])
   const [draft, setDraft] = useState<RegionDraft>({ title: '', annotation: '', tags: '', color: 'yellow', conversation: [] })
   const [trashOpen, setTrashOpen] = useState(false)
+  const [purgeCandidate, setPurgeCandidate] = useState<TrashedRegionRecord>()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; region: RegionRecord }>()
   const [openSection, setOpenSection] = useState<'notes' | 'exa' | 'ai' | null>('notes')
   const editRef = useRef<{ region: RegionRecord; draft: RegionDraft; saved: string } | undefined>(undefined)
@@ -101,12 +103,12 @@ export function RegionPanel({ regions, trash, transientImages, activeRegionId, t
 
   return (
     <div className="region-panel">
-      <div className="panel-heading"><h2>{trashOpen ? t('region.trash') : t('region.title')}</h2><div className="panel-heading-actions"><button type="button" className={`trash-toggle ${trashOpen ? 'active' : ''}`} title={t('region.trash')} onClick={() => { savePending(); setTrashOpen((value) => !value) }}><Trash2 size={14} /><span>{trash.length}</span></button><span className="count-badge">{trashOpen ? trash.length : regions.length}</span></div></div>
+      <div className="panel-heading"><h2>{trashOpen ? t('region.trash') : t('region.title')}</h2><div className="panel-heading-actions"><button type="button" className={`trash-toggle ${trashOpen ? 'active' : ''}`} title={t('region.trash')} aria-label={t('region.trash')} onClick={() => { savePending(); setTrashOpen((value) => !value) }}><Trash2 size={14} /><span>{trash.length}</span></button><span className="count-badge">{trashOpen ? trash.length : regions.length}</span></div></div>
       {trashOpen ? (
         <div className="trash-list">
           <p className="empty-copy">{t('region.trashHint')}</p>
           {trash.length === 0 && <div className="right-empty"><div className="empty-illustration"><Trash2 size={26} /></div><h3>{t('region.trashEmpty')}</h3></div>}
-          {trash.map((entry) => <div className="trash-card" key={entry.region.note.id}><div><strong>{titleFor(entry.region)}</strong><small>{t('common.page', { page: entry.region.asset.anchor.pageOrSlide })} · {new Date(entry.deletedAt).toLocaleDateString()}</small></div><button type="button" className="icon-button" disabled={busy} title={t('region.restore')} onClick={() => void onRestore(entry).then(() => setTrashOpen(false))}><RotateCcw size={15} /></button><button type="button" className="icon-button danger-ghost" disabled={busy} title={t('region.purge')} onClick={() => { if (window.confirm(t('region.purgeConfirm'))) void onPurge(entry) }}><XCircle size={15} /></button></div>)}
+          {trash.map((entry) => <div className="trash-card" key={entry.region.note.id}><div><strong>{titleFor(entry.region)}</strong><small>{t('common.page', { page: entry.region.asset.anchor.pageOrSlide })} · {new Date(entry.deletedAt).toLocaleDateString()}</small></div><button type="button" className="icon-button" disabled={busy} title={t('region.restore')} aria-label={`${t('region.restore')}: ${titleFor(entry.region)}`} onClick={() => void onRestore(entry).then(() => setTrashOpen(false))}><RotateCcw size={15} /></button><button type="button" className="icon-button danger-ghost" disabled={busy} title={t('region.purge')} aria-label={`${t('region.purge')}: ${titleFor(entry.region)}`} onClick={() => setPurgeCandidate(entry)}><XCircle size={15} /></button></div>)}
         </div>
       ) : <>
       {active && regions.length > 1 && (
@@ -166,6 +168,19 @@ export function RegionPanel({ regions, trash, transientImages, activeRegionId, t
         { id: 'open', label: t('region.open'), icon: <Pencil size={15} />, onSelect: () => onSelect(contextMenu.region) },
         { id: 'delete', label: t('common.delete'), icon: <Trash2 size={15} />, tone: 'danger', separatorBefore: true, disabled: busy, onSelect: () => void onDelete(contextMenu.region) }
       ]} />}
+      <ConfirmDialog
+        open={Boolean(purgeCandidate)}
+        title={t('region.purge')}
+        message={t('region.purgeConfirm')}
+        confirmLabel={t('region.purge')}
+        busy={busy}
+        onCancel={() => setPurgeCandidate(undefined)}
+        onConfirm={() => {
+          const target = purgeCandidate
+          setPurgeCandidate(undefined)
+          if (target) void onPurge(target)
+        }}
+      />
     </div>
   )
 }

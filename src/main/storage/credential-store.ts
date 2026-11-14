@@ -1,11 +1,24 @@
-import { safeStorage } from 'electron'
+/**
+ * Server-side AI API key encryption and lookup store.
+ *
+ * Delegates encryption/decryption to the injected or ConfigStore-owned
+ * `SecretCodec` so secrets never reach the browser or plain JSON exports.
+ */
 import { ConfigStore } from './config-store'
+import type { SecretCodec } from './secret-vault'
 
 export class CredentialStore {
-  constructor(private readonly config: ConfigStore) {}
+  private readonly secretCodec: SecretCodec
+
+  constructor(
+    private readonly config: ConfigStore,
+    secretCodec?: SecretCodec
+  ) {
+    this.secretCodec = secretCodec ?? config.secretCodec
+  }
 
   isEncryptionAvailable(): boolean {
-    return safeStorage.isEncryptionAvailable() && !usesWeakLinuxBackend()
+    return this.secretCodec.isEncryptionAvailable()
   }
 
   async hasAIKey(connectionId: string): Promise<boolean> {
@@ -26,9 +39,9 @@ export class CredentialStore {
     const trimmed = apiKey.trim()
     if (!trimmed) throw new Error('API key is empty.')
     if (!this.isEncryptionAvailable()) {
-      throw new Error('The operating system credential encryption service is unavailable.')
+      throw new Error('The credential encryption service is unavailable.')
     }
-    return safeStorage.encryptString(trimmed).toString('base64')
+    return this.secretCodec.encryptString(trimmed)
   }
 
   async getAIKey(connectionId: string): Promise<string> {
@@ -38,9 +51,9 @@ export class CredentialStore {
       throw new Error('Configure an AI API key in Settings before asking a question.')
     }
     if (!this.isEncryptionAvailable()) {
-      throw new Error('The operating system credential encryption service is unavailable.')
+      throw new Error('The credential encryption service is unavailable.')
     }
-    return safeStorage.decryptString(Buffer.from(encryptedApiKey, 'base64'))
+    return this.secretCodec.decryptString(encryptedApiKey)
   }
 
   async deleteAIKey(connectionId: string): Promise<void> {
@@ -52,10 +65,4 @@ export class CredentialStore {
     ai.credentialFingerprints = fingerprints
     await this.config.saveAIConfig(ai)
   }
-}
-
-function usesWeakLinuxBackend(): boolean {
-  if (process.platform !== 'linux') return false
-  const selectedStorageBackend = (safeStorage as unknown as { getSelectedStorageBackend?: () => string }).getSelectedStorageBackend?.()
-  return selectedStorageBackend === 'basic_text'
 }

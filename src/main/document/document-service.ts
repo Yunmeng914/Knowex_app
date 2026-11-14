@@ -1,6 +1,11 @@
-import { dialog } from 'electron'
+/**
+ * Document ingestion and workspace reopening service.
+ *
+ * Replaces Electron's native file dialog with `importUploaded` so browser uploads
+ * are stored safely inside the active workspace's `.knowex/imports` folder.
+ */
 import { createHash } from 'node:crypto'
-import { copyFile, readFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, extname, join, resolve } from 'node:path'
 import type { DocumentKind, DocumentRecord, OpenDocumentResult } from '../../shared/domain/models'
 import { WorkspaceRepository } from '../storage/workspace-repository'
@@ -13,21 +18,6 @@ export class DocumentService {
     private readonly converter: PresentationConverter,
     private readonly config: ConfigStore
   ) {}
-
-  async openFromDialog(): Promise<OpenDocumentResult | null> {
-    const language = await this.config.getLanguage()
-    const selection = await dialog.showOpenDialog({
-      title: language === 'zh-CN' ? '打开科研文献' : 'Open a Research Document',
-      properties: ['openFile'],
-      filters: [
-        { name: language === 'zh-CN' ? '科研文献' : 'Research Documents', extensions: ['pdf', 'ppt', 'pptx'] },
-        { name: 'PDF', extensions: ['pdf'] },
-        { name: 'PowerPoint', extensions: ['ppt', 'pptx'] }
-      ]
-    })
-    if (selection.canceled || !selection.filePaths[0]) return null
-    return this.openLocal(selection.filePaths[0])
-  }
 
   async openLocal(sourcePath: string): Promise<OpenDocumentResult> {
     const workspacePath = await this.repository.ensureWorkspace()
@@ -50,6 +40,59 @@ export class DocumentService {
     }
     await this.repository.upsertDocument(document)
     return this.result(document, await readFile(readablePath))
+  }
+
+  /** Persists a browser-uploaded PDF/PPT/PPTX into the workspace and returns hydrated reader bytes. */
+  async importUploaded(options: { filename: string; bytes: Uint8Array }): Promise<OpenDocumentResult> {
+    const safeFilename = sanitizeFilename(options.filename)
+    const extension = extname(safeFilename).toLowerCase().slice(1)
+    if (!['pdf', 'ppt', 'pptx'].includes(extension)) {
+      throw new Error('Knowex supports PDF, PPT, and PPTX files.')
+    }
+    if (options.bytes.byteLength === 0 || options.bytes.byteLength > 100 * 1024 * 1024) {
+      throw new Error('Uploaded file must be between 1 byte and 100 MB.')
+    }
+
+    const workspacePath = await this.repository.ensureWorkspace()
+    const kind = extension as DocumentKind
+    // Include content digest so re-uploading the same file reconnects to existing annotations.
+    const digest = createHash('sha256').update(options.bytes).digest('hex').slice(0, 16)
+    const id = stableDocumentId(`web:${safeFilename.toLowerCase()}:${digest}`)
+    const importsDir = join(workspacePath, '.knowex', 'imports')
+    await mkdir(importsDir, { recursive: true })
+
+    let storedPath = join(importsDir, `${id}.pdf`)
+    let pdfBytes = options.bytes
+
+    if (kind === 'pdf') {
+      await copyFileToBuffer(options.bytes, `${storedPath}.tmp`, storedPath)
+    } else {
+      const stagedSource = join(workspacePath, '.knowex', 'tmp', `${id}.${extension}`)
+      await mkdir(join(workspacePath, '.knowex', 'tmp'), { recursive: true })
+      await copyFileToBuffer(options.bytes, `${stagedSource}.tmp`, stagedSource)
+      try {
+        const convertedPath = await this.converter.convert(stagedSource, importsDir)
+        if (convertedPath !== storedPath) {
+          await rename(convertedPath, storedPath)
+        }
+        pdfBytes = new Uint8Array(await readFile(storedPath))
+      } finally {
+        await rm(stagedSource, { force: true }).catch(() => undefined)
+      }
+    }
+
+    const existing = await this.repository.getDocument(id).catch(() => undefined)
+    const document: DocumentRecord = {
+      id,
+      title: existing?.title || basename(safeFilename, extname(safeFilename)),
+      kind,
+      source: 'local',
+      sourcePath: storedPath,
+      sourceName: safeFilename,
+      openedAt: new Date().toISOString()
+    }
+    await this.repository.upsertDocument(document)
+    return this.result(document, pdfBytes)
   }
 
   async openRecent(documentId: string): Promise<OpenDocumentResult> {
@@ -105,8 +148,12 @@ export function stableDocumentId(identity: string): string {
   return `doc-${createHash('sha256').update(identity).digest('hex').slice(0, 24)}`
 }
 
+function sanitizeFilename(value: string): string {
+  const base = basename(value).replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim()
+  return base || 'document.pdf'
+}
+
 async function copyFileToBuffer(bytes: Uint8Array, temporaryPath: string, finalPath: string): Promise<void> {
-  const { writeFile, rename } = await import('node:fs/promises')
   await writeFile(temporaryPath, bytes)
   await rename(temporaryPath, finalPath)
 }

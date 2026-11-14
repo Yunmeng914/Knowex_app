@@ -171,8 +171,14 @@ export function isSafeExecutablePath(value: string): boolean {
   return basename(value).trim().length > 0
 }
 
+/**
+ * Validates that a candidate CLI path is a direct executable rather than a Windows shell shim.
+ * On Windows only `.exe` is accepted; on POSIX hosts `.cmd`/`.bat`/`.ps1` remain rejected while native binaries pass.
+ */
 export function isExpectedExecutableFile(value: string): boolean {
-  return /\.exe$/i.test(value)
+  if (/\.(cmd|bat|ps1)$/i.test(value)) return false
+  if (process.platform === 'win32') return /\.exe$/i.test(value)
+  return true
 }
 
 export function stripAnsi(value: string): string {

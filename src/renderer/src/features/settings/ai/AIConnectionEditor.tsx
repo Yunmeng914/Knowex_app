@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { AIConnectionPublic, AIConnectionTestPublic, AIModelDiscovery, AIModelPublic, AIProviderPresetPublic, AICapabilities, AIEndpointMode, AIProvider, AITransport, CapabilityVerificationPublic, ModelDiscoveryResult } from '@shared/domain/models'
 import type { DiscoverAIModelsInput, SaveAIConnectionInput, TestAIConnectionInput } from '@shared/contracts/ipc'
 import { useI18n } from '../../../i18n/I18nProvider'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { AIConnectionTestResult } from './AIConnectionTestResult'
 import type { EditorMode } from './ai-connection-ui'
 import { capabilityText, editorTitle, errorAdvice, formatCheckedAt, safeProviderMessage, testScopeNote } from './ai-connection-ui'
@@ -128,6 +129,7 @@ export function AIConnectionEditor({ mode, connection, draft, presets, busy, tes
   const [discovery, setDiscovery] = useState<ModelDiscoveryResult>()
   const [discovering, setDiscovering] = useState(false)
   const [verifyingImage, setVerifyingImage] = useState(false)
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false)
 
   const preset = useMemo(() => presets.find((item) => item.provider === provider) ?? firstPreset, [firstPreset, presets, provider])
   const isCustom = preset.custom
@@ -289,7 +291,11 @@ export function AIConnectionEditor({ mode, connection, draft, presets, busy, tes
 
   const clearSavedKey = (): void => {
     if (!connection?.configured || isLocal) return
-    if (!window.confirm(text.clearKeyConfirm)) return
+    setConfirmClearOpen(true)
+  }
+
+  const executeClearSavedKey = (): void => {
+    setConfirmClearOpen(false)
     onSave({ ...input(), apiKey: undefined, clearApiKey: true } as SaveAIConnectionInput)
   }
 
@@ -422,6 +428,15 @@ export function AIConnectionEditor({ mode, connection, draft, presets, busy, tes
         <button type="button" className="button" disabled={busy || !canSubmit} onClick={() => onTest(input() as TestAIConnectionInput)}>{text.test}</button>
         <button type="button" className="button primary" disabled={busy || !canSubmit} onClick={() => onSave(input())}>{text.save}</button>
       </div>
+      <ConfirmDialog
+        open={confirmClearOpen}
+        title={text.clearKey}
+        message={text.clearKeyConfirm}
+        confirmLabel={text.clearKey}
+        busy={busy}
+        onCancel={() => setConfirmClearOpen(false)}
+        onConfirm={executeClearSavedKey}
+      />
     </div>
   )
 }

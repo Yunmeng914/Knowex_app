@@ -63,15 +63,20 @@ export function PdfReader(props: Props): React.JSX.Element {
   useEffect(() => {
     let cancelled = false
     const task = pdfjs.getDocument({ data: props.bytes.slice() })
-    void task.promise.then((loaded) => {
-      if (cancelled) return
-      setDocument(loaded)
-      setSecondaryPage(Math.min(loaded.numPages, Math.max(1, props.page + 1)))
-      props.onReady(loaded.numPages)
-    })
+    void task.promise
+      .then((loaded) => {
+        if (cancelled) return
+        setDocument(loaded)
+        setSecondaryPage(Math.min(loaded.numPages, Math.max(1, props.page + 1)))
+        props.onReady(loaded.numPages)
+      })
+      .catch((error: unknown) => {
+        // Ignore expected cancellation rejections from React StrictMode unmount or document switching.
+        if (!cancelled) console.error(error)
+      })
     return () => {
       cancelled = true
-      void task.destroy()
+      void task.destroy().catch(() => undefined)
       setDocument(null)
     }
   }, [props.bytes])
