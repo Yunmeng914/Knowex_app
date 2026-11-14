@@ -1,0 +1,13 @@
+/* Application-shell feedback and empty-state presentation used by App.tsx; feature panels remain styled in their owning modules. */
+.welcome { display: flex; width: min(520px, 82%); height: 100%; flex-direction: column; align-items: flex-start; justify-content: center; margin: auto; text-align: left; }
+.welcome h1 { margin: 0 0 10px; font: 650 clamp(25px, 2.6vw, 34px)/1.25 Georgia, "Noto Serif SC", serif; }
+.welcome > p { max-width: 500px; margin: 0; color: var(--muted); font-size: var(--text-body); line-height: 1.7; }
+.welcome .welcome-hint { margin-top: 12px; font-size: var(--text-secondary); }
+.welcome-actions { display: flex; gap: 9px; margin-top: 22px; }
+
+.statusbar { display: flex; align-items: center; gap: 8px; padding: 0 12px; border-top: 1px solid var(--line); color: var(--muted); background: var(--surface); font-size: var(--text-meta); }
+.statusbar > span { display: inline-flex; align-items: center; gap: 4px; }
+.status-dot { width: 3px; height: 3px; flex: 0 0 3px; border-radius: 50%; background: #a7aaa5; }
+.toast { position: fixed; right: 20px; bottom: 42px; z-index: 100; display: flex; max-width: 430px; align-items: flex-start; gap: 8px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 12px 30px rgba(30, 34, 31, .17); font-size: var(--text-secondary); line-height: 1.45; }
+.toast.error { color: var(--danger); border-color: #e2b8b3; background: #fff5f4; }
+.toast.success { color: var(--green); border-color: #b9d0c2; background: #f2f8f4; }

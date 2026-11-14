@@ -1,0 +1,66 @@
+{
+  "name": "knowex",
+  "version": "0.7.0",
+  "description": "Local-first research document reader with region-based notes and vision AI.",
+  "author": "bywang",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "doctor": "node scripts/check-environment.mjs",
+    "prepare:electron": "node scripts/ensure-electron-runtime.mjs",
+    "repair:electron": "npm run prepare:electron",
+    "predev": "npm run prepare:electron",
+    "dev": "electron-vite dev",
+    "prestart": "npm run prepare:electron",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "npm run typecheck && electron-vite build",
+    "package:win": "npm run build && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "lucide-react": "^1.24.0",
+    "pdfjs-dist": "^6.1.200",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-resizable-panels": "^4.12.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "build": {
+    "appId": "org.knowex.app",
+    "productName": "Knowex",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
